@@ -25,16 +25,17 @@ public class UrlShortenerController : ControllerBase
     }
 
     [HttpPost("shorten")]
-    
     public async Task<object> Post(ShortenUrlRequest request)
     {
-
+        _logger.LogInformation("Start POST Method");
         if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
         {
             return Results.BadRequest("The specified URL is not valid");
         }
 
         var code = await _urlShorteningService.GenerateUniqueCode();
+        _logger.LogInformation($"Unique Code Generated: {code}");
+
 
         var shortenedUrl = new ShortenedUrl
         {
@@ -48,7 +49,8 @@ public class UrlShortenerController : ControllerBase
 
         await _dbContext.SaveChangesAsync();
 
-        ShortenUrlResponse response = new ShortenUrlResponse(){
+        ShortenUrlResponse response = new ShortenUrlResponse()
+        {
             Link = shortenedUrl.ShortUrl
         };
 
@@ -58,13 +60,16 @@ public class UrlShortenerController : ControllerBase
     [HttpGet("{code}")]
     public async Task<object> GetNewLink(string code)
     {
-        Console.WriteLine("Entra nel GetNewLink");
+        _logger.LogInformation($"Start Get Method");
+
         var shortenedUrl = await _dbContext.ShortenedUrls.FirstOrDefaultAsync(s => s.Code.Equals(code));
-        Console.WriteLine($"ShortenedUrl: {shortenedUrl}");
+        _logger.LogInformation($"ShortenedUrl: {shortenedUrl}");
+
 
         if (shortenedUrl is null) return Results.NotFound();
 
-        Console.WriteLine($"ShortenedUrl trovato");
+        _logger.LogInformation($"Find Record: {shortenedUrl.LongUrl}");
+        
 
         return Results.Redirect(shortenedUrl.LongUrl);
     }
