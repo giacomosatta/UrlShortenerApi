@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using UrlShortenerApi.Models;
 using UrlShortenerApi.Services;
 
@@ -14,14 +15,16 @@ public class UrlShortenerController : ControllerBase
     private readonly ILogger<UrlShortenerController> _logger;
     private readonly UrlShorteningService _urlShorteningService;
     private readonly ApplicationDbContext _dbContext;
+    private readonly IMemoryCache _cache;
 
 
 
-    public UrlShortenerController(ILogger<UrlShortenerController> logger, ApplicationDbContext dbContext)
+    public UrlShortenerController(ILogger<UrlShortenerController> logger, ApplicationDbContext dbContext, IMemoryCache cache)
     {
         _logger = logger;
         _dbContext = dbContext;
         _urlShorteningService = new UrlShorteningService(_dbContext);
+        _cache = cache;
     }
 
     [HttpPost("shorten")]
@@ -62,15 +65,24 @@ public class UrlShortenerController : ControllerBase
     {
         _logger.LogInformation($"Start Get Method");
 
-        var shortenedUrl = await _dbContext.ShortenedUrls.FirstOrDefaultAsync(s => s.Code.Equals(code));
-        _logger.LogInformation($"ShortenedUrl: {shortenedUrl}");
+        ShortenedUrl? shortenedUrl = new ShortenedUrl();
 
+        if (_cache.TryGetValue(code, out shortenedUrl))
+            _logger.LogInformation("Url found in cache");
+        else
+        {
+            _logger.LogInformation("Url not found in cache");
+            shortenedUrl = await _dbContext.ShortenedUrls.FirstOrDefaultAsync(s => s.Code.Equals(code));
+            _logger.LogInformation($"ShortenedUrl: {shortenedUrl}");
+
+            _cache.Set(code, shortenedUrl);
+            _logger.LogInformation("Url added to cache");
+
+        }
 
         if (shortenedUrl is null) return Results.NotFound();
 
         _logger.LogInformation($"Find Record: {shortenedUrl.LongUrl}");
-        
-
         return Results.Redirect(shortenedUrl.LongUrl);
     }
 
